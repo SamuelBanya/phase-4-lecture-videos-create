@@ -1,0 +1,233 @@
+* Notes
+I first began the lesson by adding a 'byebug' to the 'create' method I created within the 'app/controllers/productions_controller.rb' file:
+#+begin_src ruby
+class ProductionsController < ApplicationController
+    def index
+        productions = Production.all()
+        render json: productions, status: :ok
+    end
+
+    def show
+        production = Production.find_by(id: params[:id])
+
+        if production
+            render json: production, status: :ok
+        else
+            render json: {error: "production not found"}, status: :not_found
+        end
+    end
+
+    def create
+        byebug
+    end
+end
+#+end_src
+
+I then started the server with the 'rails s' command.
+
+I then opened up Postman, and used the following details:
+- HTTP Verb Used: POST
+- URL: http://localhost:3000/productions
+- Body Used > raw > json:
+NOTE: I used the 'schema' of the project to figure out what column values to add in this scenario:
+#+begin_src json
+{
+    "title": "The Lion King",
+    "genre": "Musical",
+    "budget": "45000000",
+    "image": "https://en.wikipedia.org/wiki/The_Lion_King_(musical)#/media/File:The_Lion_King_Musical.svg",
+    "director": "Julie Taymor",
+    "ongoing": true,
+    "description": "It's a musical about a big cat"
+}
+#+end_src
+
+In typical video instructor fashion, they forgot to note that they took out the 'only:' symbol section within the 'config/routes.rb' file so I had to revise it accordingly:
+#+begin_src ruby
+Rails.application.routes.draw do
+  resources :crew_members
+  # resources :productions, only: [:index, :show]
+  resources :productions
+  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
+
+  # Defines the root path route ("/")
+  # root "articles#index"
+end
+#+end_src
+
+I then started the server with the 'rails s' server command, and I then hit the 'Send' button in Postman, and played with the following 'byebug' output:
+#+begin_src bash
+[11, 20] in /Users/samuelbanya/hub/Development/code/phase-4/phase-4-lecture-videos-create/flatiron-theater/app/controllers/productions_controller.rb
+   11:             render json: production, status: :ok
+   12:         else
+   13:             render json: {error: "production not found"}, status: :not_found
+   14:         end
+   15:     end
+   16:
+   17:     def create
+   18:         byebug
+=> 19:     end
+   20: end
+(byebug) params
+#<ActionController::Parameters {"title"=>"The Lion King", "genre"=>"Musical", "budget"=>"45000000", "image"=>"https://en.wikipedia.org/wiki/The_Lion_King_(musical)#/media/File:The_Lion_King_Musical.svg", "director"=>"Julie Taymor", "ongoing"=>true, "description"=>"It's a musical about a big cat", "controller"=>"productions", "action"=>"create", "production"=>{"title"=>"The Lion King", "genre"=>"Musical", "budget"=>"45000000", "image"=>"https://en.wikipedia.org/wiki/The_Lion_King_(musical)#/media/File:The_Lion_King_Musical.svg", "ongoing"=>true, "description"=>"It's a musical about a big cat"}} permitted: false>
+#+end_src
+
+I then modified the 'app/controllers/productions_controller.rb' controller file with the following contents to include 'wrap_parameters' to wrap the 'params' hash values that the user provides and redirect it to a 'production_params' private method that can ONLY take certain values, and will block any alternate malicious attempts to add other weird param values to the request itself:
+#+begin_src ruby
+class ProductionsController < ApplicationController
+    # NOTE: This is added to wrap the 'params' hash below:
+    wrap_parameters format: []
+    def index
+        productions = Production.all()
+        render json: productions, status: :ok
+    end
+
+    def show
+        production = Production.find_by(id: params[:id])
+
+        if production
+            render json: production, status: :ok
+        else
+            render json: {error: "production not found"}, status: :not_found
+        end
+    end
+
+    def create
+        # NOTE: I revised this line to instead use 'production_params' from the private method below:
+        # production = Production.create(params)
+        production = Production.create(production_params)
+        byebug
+    end
+
+    private
+
+    # NOTE: This private method ONLY allows these parameter values to come inside these 'production_params'
+    def production_params
+        params.permit(:title, :genre, :budget, :image, :director, :ongoing, :description)
+    end
+end
+#+end_src
+
+With this revision, I made the same Postman request as before with the following details:
+- HTTP Verb Used: POST
+- URL: http://localhost:3000/productions
+- Body Used > raw > json:
+NOTE: I used the 'schema' of the project to figure out what column values to add in this scenario:
+#+begin_src json
+{
+    "title": "The Lion King",
+    "genre": "Musical",
+    "budget": "45000000",
+    "image": "https://en.wikipedia.org/wiki/The_Lion_King_(musical)#/media/File:The_Lion_King_Musical.svg",
+    "director": "Julie Taymor",
+    "ongoing": true,
+    "description": "It's a musical about a big cat"
+}
+#+end_src
+
+I realized YET AGAIN that the instructor added stuff BEFORE the video, aka another migration involving a 'director' column value. With this in mind, I had to do this myself with this 'rails g migration' command:
+#+begin_src bash
+samuelbanya@Samuels-MBP ~/hub/Development/code/phase-4/phase-4-lecture-videos-create/flatiron-theater $ rails g migration add_director_to_productions
+      invoke  active_record
+      create    db/migrate/20221021215655_add_director_to_productions.rb
+#+end_src
+
+I then made the following revision to the resulting 'db/migrate/20221021215655_add_director_to_productions.rb' migration file:
+#+begin_src ruby
+class AddDirectorToProductions < ActiveRecord::Migration[7.0]
+  def change
+    add_column :productions, :director, :string
+  end
+end
+#+end_src
+
+I then ran the 'rails db:migrate' command.
+
+I then ran the 'rails s' server command, and re-ran the previous Postman request to see if it would now work which landed me in the 'byebug' console:
+#+begin_src bash
+[19, 28] in /Users/samuelbanya/hub/Development/code/phase-4/phase-4-lecture-videos-create/flatiron-theater/app/controllers/productions_controller.rb
+   19:     def create
+   20:         # NOTE: I revised this line to instead use 'production_params' from the private method below:
+   21:         # production = Production.create(params)
+   22:         production = Production.create(production_params)
+   23:         byebug
+=> 24:     end
+   25:
+   26:     private
+   27:
+   28:     # NOTE: This private method ONLY allows these parameter values to come inside these 'production_params'
+(byebug) params
+#<ActionController::Parameters {"title"=>"The Lion King", "genre"=>"Musical", "budget"=>"45000000", "image"=>"https://en.wikipedia.org/wiki/The_Lion_King_(musical)#/media/File:The_Lion_King_Musical.svg", "director"=>"Julie Taymor", "ongoing"=>true, "description"=>"It's a musical about a big cat", "controller"=>"productions", "action"=>"create"} permitted: false>
+(byebug) production
+#<Production id: 9, title: "The Lion King", genre: "Musical", budget: 45000000, image: "https://en.wikipedia.org/wiki/The_Lion_King_(music...", ongoing: true, created_at: "2022-10-21 21:58:54.472147000 +0000", updated_at: "2022-10-21 21:58:54.472147000 +0000", description: "It's a musical about a big cat", director: "Julie Taymor">
+#+end_src
+
+I then removed the 'byebug' section, and returned json with 'render json:' method in the '' file:
+#+begin_src ruby
+class ProductionsController < ApplicationController
+    # NOTE: This is added to wrap the 'params' hash below:
+    wrap_parameters format: []
+    def index
+        productions = Production.all()
+        render json: productions, status: :ok
+    end
+
+    def show
+        production = Production.find_by(id: params[:id])
+
+        if production
+            render json: production, status: :ok
+        else
+            render json: {error: "production not found"}, status: :not_found
+        end
+    end
+
+    def create
+        # NOTE: I revised this line to instead use 'production_params' from the private method below:
+        # production = Production.create(params)
+        production = Production.create(production_params)
+        render json: production, status: :created
+    end
+
+    private
+
+    # NOTE: This private method ONLY allows these parameter values to come inside these 'production_params'
+    def production_params
+        params.permit(:title, :genre, :budget, :image, :director, :ongoing, :description)
+    end
+end
+#+end_src
+
+I then started the 'rails s' server, and made the same Postman request as before:
+
+- HTTP Verb Used: POST
+- URL: http://localhost:3000/productions
+- Body Used > raw > json:
+NOTE: I used the 'schema' of the project to figure out what column values to add in this scenario:
+#+begin_src json
+{
+    "title": "The Lion King",
+    "genre": "Musical",
+    "budget": "45000000",
+    "image": "https://en.wikipedia.org/wiki/The_Lion_King_(musical)#/media/File:The_Lion_King_Musical.svg",
+    "director": "Julie Taymor",
+    "ongoing": true,
+    "description": "It's a musical about a big cat"
+}
+#+end_src
+
+This resulted in the following JSON response of the resulting object that was created, which had its own corresponding 'id' value as a result of being generated from the server:
+#+begin_src json
+{
+    "id": 10,
+    "title": "The Lion King",
+    "genre": "Musical",
+    "budget": 45000000,
+    "image": "https://en.wikipedia.org/wiki/The_Lion_King_(musical)#/media/File:The_Lion_King_Musical.svg",
+    "ongoing": true,
+    "created_at": "2022-10-21T22:04:56.049Z",
+    "updated_at": "2022-10-21T22:04:56.049Z",
+    "description": "It's a musical about a big cat",
+    "director": "Julie Taymor"
+}
+#+end_src
